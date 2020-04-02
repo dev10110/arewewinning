@@ -8,28 +8,53 @@ import requests
 
 from adjustText import adjust_text
 
+
 st.title("Are we winning?")
 
+st.markdown(r"""
 
 
-###### Collect raw data
+We will plot the data in a style inspired by MinutePhysics @ https://www.youtube.com/watch?v=54XLXg4fYsc
+
+Essentially, with exponential curves its very difficult to predict whether you've started to hit the plateau.
+So, instead of plotting things on the time axis, we choose to plot them in such a way that the exponential growth is highlighted.
+
+If a curve $$N(t)$$ is exponential, it follows this rule:
+
+$$\frac{dN}{dt} = k N$$
+
+which means that the growth rate is proportional to the current count. In the case of modelling pandemics, a slower pandemic is when this growth rate decreases.
+If its 0 that means that you have no additional cases, and essentially means you've won.
+
+So lets find this constant for various countries. We will plot the increase in number of cases (which is proportional to $$\frac{dN}{dt}$$) against the total number of cases thus far (a proxy for the current number of infected people).
+
+Really, this ignores most of the detailed modelling (like the SEIR model, or contact-dynamics based models) that exist.
+
+It just provides a different perspective to everyday's news. Instead of being surprised by the record high number of cases everyday, we should look out for slowing growth rates, and hopefully this applet helps you see it for yourself.
+
+Play around with the data, and if you have any suggestions for more stuff I should add, please fork the project or let me know!
+
+""")
+
+# Collect raw data
+st.header("Gathering Data")
 
 st.write("Reading data from https://github.com/CSSEGISandData/COVID-19")
 repo = 'CSSEGISandData/COVID-19'
 
 # raw url is the url to get the raw data
 # requests_url is the url at which the api call to get the last commit date can be found.
-raw_url ='https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/'
+raw_url = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/'
 request_url = 'https://api.github.com/repos/{0}/commits?path={1}'
 
-##########
+# confirmed
 st.subheader('Getting global confirmed cases')
 
-path_confirmed = 'csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv';
+path_confirmed = 'csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv'
 df_confirmed = pd.read_csv(raw_url + path_confirmed)
 
 if st.checkbox('Show Confirmed Raw Data'):
-    st.write(df_confirmed);
+    st.write(df_confirmed)
 
 try:
     r = requests.get(request_url.format(repo, path_confirmed))
@@ -37,13 +62,15 @@ try:
     st.write('Last Updated ' + date_updated)
 except:
     pass
-##########
+
+
+# deaths
 st.subheader('Getting global reported deaths')
 path_deaths = 'csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv'
 df_deaths = pd.read_csv(raw_url + path_deaths)
 
 if st.checkbox('Show Deaths (Raw Data)'):
-    st.write(df_deaths);
+    st.write(df_deaths)
 
 try:
     r = requests.get(request_url.format(repo, path_deaths))
@@ -53,13 +80,13 @@ except:
     pass
 
 
-##########
+# recovered
 st.subheader('Getting global recovered cases')
 path_recovered = 'csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv'
 df_recovered = pd.read_csv(raw_url + path_recovered)
 
 if st.checkbox('Show Recovered (Raw Data)'):
-    st.write(df_recovered);
+    st.write(df_recovered)
 
 try:
     r = requests.get(request_url.format(repo, path_recovered))
@@ -68,15 +95,21 @@ try:
 except:
     pass
 
-#### Raw Data Loaded
+# Raw Data Loaded
 
-#### Corrections to data
+# Corrections to data
 st.subheader("Process the data...")
-st.write('Note, the data from Guyana is removed as it seems weird')
+st.write("Note, the data from Guyana is removed as it's data seems weird")
+
 # remove lat long data
-df_confirmed2=df_confirmed.drop(columns=['Lat','Long']).groupby('Country/Region').sum().transpose().drop(columns=['Guyana'])
-df_deaths2=df_deaths.drop(columns=['Lat','Long']).groupby('Country/Region').sum().transpose().drop(columns=['Guyana'])
-df_recovered2=df_recovered.drop(columns=['Lat','Long']).groupby('Country/Region').sum().transpose().drop(columns=['Guyana'])
+df_confirmed2 = df_confirmed.drop(columns=['Lat', 'Long']).groupby(
+    'Country/Region').sum().transpose().drop(columns=['Guyana'])
+
+df_deaths2 = df_deaths.drop(columns=['Lat', 'Long']).groupby(
+    'Country/Region').sum().transpose().drop(columns=['Guyana'])
+
+df_recovered2 = df_recovered.drop(columns=['Lat', 'Long']).groupby(
+    'Country/Region').sum().transpose().drop(columns=['Guyana'])
 
 # make index into timeseries
 df_confirmed2.index = pd.to_datetime(df_confirmed2.index)
@@ -91,34 +124,39 @@ df_recovered2['World'] = df_recovered2.sum(axis=1)
 
 if st.checkbox('Show Processed Data'):
     st.write('Confirmed Cases:')
-    st.write(df_confirmed2);
+    st.write(df_confirmed2)
     st.write('Deaths Cases:')
-    st.write(df_deaths2);
+    st.write(df_deaths2)
     st.write('Recovered Cases:')
-    st.write(df_recovered2);
+    st.write(df_recovered2)
 
 
+st.header('Plot')
 
-st.subheader('Plot')
 
-##### collect information on new cases
-window = st.slider("Sum new cases over how many days?", min_value=1, max_value=15, value=3, step=1) # days
+# collect information on new cases
+window = st.slider("Sum new cases over how many days?", min_value=1,
+                   max_value=15, value=3, step=1)  # days
 
-# number of new cases that will be created today
+xopts = ["Total Confirmed Cases", "Total Deaths",
+         "Total Recovered", "Total (Confirmed - Recovered)"]
+yopts = ["New Confirmed Cases", "New Deaths", "New Recovered"]
+
+xaxis = st.radio('X-Axis Type', xopts, index=3)
+yaxis = st.radio('Y-Axis Type', yopts, index=0)
+
+highlight = st.multiselect("Select the countries to highlight", list(df_confirmed2.columns), default=[
+                           "World", "US", "Italy", "China", "Korea, South", "Singapore"])
+
+factor = st.slider("Growth constant", min_value=0.0,
+                   max_value=2.0, value=1.0, step=0.1)
+
+
+# number of new cases that will be created today, and applying a rolling sum filter
 df_confirmed_new = df_confirmed2.diff().rolling(f'{window}d').sum()
 df_deaths_new = df_deaths2.diff().rolling(f'{window}d').sum()
 df_recovered_new = df_recovered2.diff().rolling(f'{window}d').sum()
 
-
-
-
-xopts = ["Total Confirmed Cases", "Total Deaths", "Total Recovered"]
-yopts = ["New Confirmed Cases", "New Deaths", "New Recovered"]
-
-xaxis = st.radio('X-Axis Type', xopts, index=0)
-yaxis = st.radio('Y-Axis Type', yopts, index=0)
-
-highlight = st.multiselect("Select the countries to highlight", list(df_confirmed2.columns), default=["World", "US", "Italy", "China", "Korea, South", "Singapore"])
 
 if xaxis == 'Total Confirmed Cases':
     x = df_confirmed2
@@ -126,6 +164,8 @@ if xaxis == 'Total Deaths':
     x = df_deaths2
 if xaxis == 'Total Recovered':
     x = df_recovered2
+if xaxis == 'Total (Confirmed - Recovered)':
+    x = df_confirmed2 - df_recovered2
 
 
 if yaxis == 'New Confirmed Cases':
@@ -139,27 +179,20 @@ if yaxis == 'New Recovered':
 # start plotting
 fig = plt.figure()
 
-if len(highlight) > 0:
+# if you dont choose any to highlight, all will be colored
+
+# plot everything in gray if the length of highlight is 0
+if len(highlight) == 0:
     for c in df_confirmed2.columns:
-        if not c in highlight:
-            plt.plot(x[c],y[c], 'gray', label=c)
-    for h in highlight:
-        plt.plot(x[h],y[h], label=h)
+        plt.plot(x[c], y[c], label=c)
 else:
     for c in df_confirmed2.columns:
-            plt.plot(x[c],y[c], label=c)
+        plt.plot(x[c], y[c], 'gray', label=c)
 
+# plot all the highlighted ones on top
+for h in highlight:
+    plt.plot(x[h], y[h], label=h)
 
-handles, labels = plt.gca().get_legend_handles_labels()
-# sort both labels and handles by total number of cases
-labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: y[t[0]][-1], reverse=True))
-
-# only show the top 10 countries in the labels
-labels2=[labels[i] for i in range(len(labels)) if i < 10 or labels[i] in highlight]
-handles2=[handles[i] for i in range(len(handles)) if i < 10 or labels[i] in highlight]
-
-#plt.gca().legend(handles2, labels2,loc='upper left', bbox_to_anchor= (1.01, 1), ncol=1,
-#            borderaxespad=0, frameon=True)
 
 plt.yscale('log')
 plt.xscale('log')
@@ -172,38 +205,40 @@ plt.xlim(left=50)
 plt.ylim(bottom=10)
 
 # plot the reference line
-factor=0.5
 
-
-xs = np.logspace(0,6)
-ys = xs
-plt.plot(xs, ys,'k--')
+xs = np.logspace(0, 6)
+ys = factor*xs
+plt.plot(xs, ys, 'k--')
 
 # collect all the force points
-allx, ally = [],[]
+allx, ally = [], []
 
 for c in df_confirmed2.columns:
-        allx.extend(x[c])
-        ally.extend(y[c])
+    allx.extend(x[c])
+    ally.extend(y[c])
 
-# create the annocations
-texts = []
 
 # Rotate angle
 pt = np.array((500, 500))
 trans_angle = plt.gca().transData.transform_angles(np.array((45,)),
                                                    pt.reshape((1, 2)))[0]
-plt.text(500,600, '1 new cases for every total case', rotation=trans_angle, ha='left', va='bottom')
+plt.text(500, 1.2*factor*500, f'{100*factor:.0f} new cases for every 100 total cases',
+         rotation=trans_angle, ha='left', va='bottom')
 
 
-for l in highlight:
-    texts.append(plt.text(x[l][-1],y[l][-1],l))
+# create the annotations
+texts = []
+for h in highlight:
+    texts.append(plt.text(x[h][-1], y[h][-1], h))
 
+# auto-adjust their positioning
+if len(texts) > 0:
+    adjust_text(texts, x=allx, y=ally, arrowprops=dict(arrowstyle="-", color='k', lw=0.5),
+                force_text=(1, 2.5), force_points=(2, 20), only_move={'points': 'y', 'text': 'y', 'objects': 'y'})
 
-if len(texts)>0:
-    adjust_text(texts, x=allx, y=ally, arrowprops=dict(arrowstyle="-", color='k', lw=0.5), force_text=(1, 2.5), force_points=(2, 20), only_move={'points':'y', 'text':'y', 'objects':'y'})
-
+# plot it
 st.pyplot()
+
 
 st.markdown(f"""
 ## How to read this plot?
@@ -218,17 +253,20 @@ But by removing this information, we can see that most countries follow a very s
 **However, if a country is doing well,** it will peel away from this trend, and show drop.
 This means that now, even though they have a large number of cases, the number of new cases is dropping!
 
+In fact, if you plot Total (Confirmed - Recovered) on the x axis, you can see China (and a few other countries) walk backwards, down and to the left.
+This means that more people are recovering rather than becoming infected.
+
 The next plot shows this growth rate (number of new cases during the window/total number of cases)
 """)
 
 
 st.subheader("So who's winning?")
 
-window2 = st.slider("Over how many days?", min_value=1, max_value=15, value=7, step=1) # days
 
+st.write(f'Lets plot the fraction of total cases that happened in the last some number of days')
 
+window2 = st.slider("Over how many days?", min_value=1, max_value=15, value=7, step=1)  # days
 
-st.write(f'Lets plot the fraction of total cases that happened in the last {window2} days')
 st.write('But lets filter out places that have had less than 100 cases in total.')
 
 # number of new cases that will be created today
@@ -237,20 +275,22 @@ df_deaths_new = df_deaths2.diff().rolling(f'{window2}d').sum()
 df_recovered_new = df_recovered2.diff().rolling(f'{window2}d').sum()
 
 
-df_ratio_nc_c = (df_confirmed_new/df_confirmed2)
+df_ratio = (df_confirmed_new/df_confirmed2)
 
 # mask the ones that have had less than 100 cases
-df_ratio_nc_c.mask(df_confirmed2<100, other=np.nan, inplace=True, axis=None, level=None, errors='raise', try_cast=False, raise_on_error=None)
+df_ratio.mask(df_confirmed2 < 100, other=np.nan, inplace=True, axis=None,
+              level=None, errors='raise', try_cast=False, raise_on_error=None)
 
-highlight2 = st.multiselect("Select countries to highlight", list(df_ratio_nc_c.columns), default=["World", "US", "Italy", "China", "Korea, South", "Singapore", "Diamond Princess"])
+highlight2 = st.multiselect("Select countries to highlight", list(df_ratio.columns), default=[
+                            "World", "US", "Italy", "China", "Korea, South", "Singapore", "Diamond Princess"])
 
 
 plt.figure()
 if len(highlight2) > 0:
-    ax = df_ratio_nc_c.plot(legend=False, color='gray')
-    df_ratio_nc_c[highlight2].plot(ax=ax)
+    ax = df_ratio.plot(legend=False, color='gray')
+    df_ratio[highlight2].plot(ax=ax)
 else:
-    df_ratio_nc_c.plot()
+    df_ratio.plot()
 plt.xlabel('Date')
 plt.title(f'Fraction of cases that occured in the last {window2} days')
 plt.ylabel('Fraction')
@@ -262,12 +302,12 @@ st.write('We can clearly see China ahead of the countries')
 st.write('If we zoom in on more recent times, (the last two months)')
 plt.figure()
 if len(highlight2) > 0:
-    ax = df_ratio_nc_c.plot(legend=False, color='gray')
-    df_ratio_nc_c[highlight2].plot(ax=ax)
+    ax = df_ratio.plot(legend=False, color='gray')
+    df_ratio[highlight2].plot(ax=ax)
 else:
-    df_ratio_nc_c.plot()
+    df_ratio.plot()
 xlim = plt.xlim()
-plt.xlim(left = xlim[1]-60)
+plt.xlim(left=xlim[1]-60)
 plt.xlabel('Date')
 plt.title(f'Fraction of cases that occured in the last {window2} days')
 plt.ylabel('Fraction')
@@ -277,25 +317,27 @@ st.write('We can see an encouraging downwards trend. ')
 
 
 # see the latest data
-df_ratio_nc_c_last = df_ratio_nc_c.iloc[-1].dropna()
-ranks = df_ratio_nc_c_last.rank(method='max')
+df_ratio_latest = df_ratio.iloc[-1].dropna()
+ranks = df_ratio_latest.rank(method='max')
 
-df = pd.concat([df_ratio_nc_c_last, ranks], axis=1)
-df.columns = ["Fraction", "Rank"]
+# create a summary data frame
+df_summary = pd.concat([df_ratio_latest, ranks], axis=1)
+df_summary.columns = ["Fraction", "Rank"]
 
-df = df.sort_values(by='Rank')
+df_summary = df_summary.sort_values(by='Rank')
 
 # add the top and bottom ten to the highlight list
-highlight3 = highlight2.copy(); # save for bold
-highlight2.extend(df[:10].index.to_list())
-highlight2.extend(df[-10:].index.to_list())
+highlight3 = highlight2.copy()  # save for bold
+highlight2.extend(df_summary[:10].index.to_list())
+highlight2.extend(df_summary[-10:].index.to_list())
 
-filtered_df = df[df.index.isin(highlight2)]
 
-filtered_df = filtered_df.reset_index().set_index("Rank", drop=False) # make rank the main index
-df = df.reset_index().set_index("Rank", drop=False) # make rank the main index
+# make a summary with the top 10, bottom 10 and the few that were highlighted
+filtered_df = df_summary[df_summary.index.isin(highlight2)]
+filtered_df = filtered_df.reset_index().set_index("Rank", drop=False)  # make rank the main index
+df_summary = df_summary.reset_index().set_index("Rank", drop=False)  # make rank the main index
 
-st.write('And as of the latest datapoint, this is the fraction for each country')
+st.write('And as of the latest datapoint, this is the growth rate for each country')
 
 
 def highlight_list(x):
@@ -304,12 +346,30 @@ def highlight_list(x):
     else:
         return ['background-color: white']*3
 
+
 if st.checkbox('Show Full Ranking'):
-    st.dataframe(df.style.apply(highlight_list, axis=1))
+    st.dataframe(df_summary.style.apply(highlight_list, axis=1))
 else:
     st.dataframe(filtered_df.style.apply(highlight_list, axis=1))
 
 
-st.write('Visit my github (https://github.com/dev10110/arewewinning) to see the code behind this, and let me know if there is anything else you want to see')
+st.markdown("""
+
+So. What does this mean?
+Well, everyday the graphs will be different, and in fact the settings you choose can show you optimistic or pessimistic views, as you desire.
+
+But overall, I'm seeing trends of lower growth rates. And China's recovery shows that they were not wrong in saying that COVID-19 can be controlled.
+If the world woke up a bit sooner and put in harsher controls, and provided the healthcare resources needed earlier, perhaps the impact wouldn't have been as serious.
+
+But today, (April 2 2020), the data shows me that things are getting better.
+
+Stay safe!
+
+Visit my github (https://github.com/dev10110/arewewinning) to see the code behind this, and let me know if there are other plots you want to see
+""")
+
+
+st.video('https://www.youtube.com/watch?v=54XLXg4fYsc')
+
 
 #
