@@ -278,8 +278,7 @@ df_recovered_new = df_recovered2.diff().rolling(f'{window2}d').sum()
 df_ratio = (df_confirmed_new/df_confirmed2)
 
 # mask the ones that have had less than 100 cases
-df_ratio.mask(df_confirmed2 < 100, other=np.nan, inplace=True, axis=None,
-              level=None, errors='raise', try_cast=False, raise_on_error=None)
+df_ratio.mask(df_confirmed2 < 100, other=np.nan, inplace=True)
 
 highlight2 = st.multiselect("Select countries to highlight", list(df_ratio.columns), default=[
                             "World", "US", "Italy", "China", "Korea, South", "Singapore", "Diamond Princess"])
