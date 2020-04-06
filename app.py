@@ -212,22 +212,22 @@ data = []
 # plot everything in gray if the length of highlight is 0
 if len(highlight) == 0:
     for c in df_confirmed2.columns:
-        data.append(go.Scattergl(x=x[c], y=y[c], name=c, showlegend=False, hovertext=datestring))
+        data.append(go.Scatter(x=x[c], y=y[c], name=c, showlegend=False, hovertext=datestring))
         #plt.plot(x[c], y[c], label=c)
 else:
     for c in df_confirmed2.columns:
         if not c in highlight:
-            data.append(go.Scattergl(x=x[c], y=y[c], name=c, line=dict(color='gray'), showlegend=False, hovertext=datestring))
+            data.append(go.Scatter(x=x[c], y=y[c], name=c, line=dict(color='gray'), showlegend=False, hovertext=datestring))
         #plt.plot(x[c], y[c], 'gray', label=c)
 
 # plot all the highlighted ones on top
 for h in highlight:
-    data.append(go.Scattergl(x=x[h], y=y[h], name=h, hovertext=datestring))
+    data.append(go.Scatter(x=x[h], y=y[h], name=h, hovertext=datestring))
     #plt.plot(x[h], y[h], label=h)
 
 
 xrange=np.logspace(1,7)
-data.append(go.Scattergl(x=xrange, y = factor*xrange, name='Growth Constant', line=dict(color='black', dash="dash"), hovertext=f'{factor*100:.0f} new cases for every 100 cases'))
+data.append(go.Scatter(x=xrange, y = factor*xrange, name='Growth Constant', line=dict(color='black', dash="dash"), hovertext=f'{factor*100:.0f} new cases for every 100 cases'))
 
 
 layout = go.Layout(xaxis_type="log", yaxis_type="log", legend={'traceorder':'normal'}, xaxis = dict(range=(2,7)), yaxis = dict(range=(1,6)),
@@ -286,17 +286,20 @@ data2 = []
 if len(highlight2) > 0:
     for c in df_ratio.columns:
         if not c in highlight2:
-            data2.append(go.Scattergl(x = df_ratio[c].index, y=df_ratio[c], name=c, line=dict(color='gray'), showlegend=False))
+            data2.append(go.Scatter(x = df_ratio[c].index, y=df_ratio[c], name=c, line=dict(color='gray'), showlegend=False))
         else:
-            data2.append(go.Scattergl(x = df_ratio[c].index, y=df_ratio[c], name=c, showlegend=True))
+            data2.append(go.Scatter(x = df_ratio[c].index, y=df_ratio[c], name=c, showlegend=True))
     #ax = df_ratio.plot(legend=False, color='gray')
     #df_ratio[highlight2].plot(ax=ax)
 else:
     for c in df_ratio.columns:
-        data2.append(go.Scattergl(x = df_ratio[c].index, y=df_ratio[c], name=c, showlegend=False))
+        data2.append(go.Scatter(x = df_ratio[c].index, y=df_ratio[c], name=c, showlegend=False))
 
-layout2 = go.Layout(title=f'Fraction of cases that occured in the last {window2} days', xaxis_title='Date',
-    yaxis_title='Fraction')
+layout2 = go.Layout(title=f'Percentage of cases that occured in the last {window2} days', xaxis_title='Date',
+    yaxis_title='Percentage',yaxis=dict(
+    tickformat= ',.0%',
+    range= [0,1]
+  ))
 
 fig2 = go.Figure(data2, layout2)
 
