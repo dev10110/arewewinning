@@ -2,9 +2,13 @@ import streamlit as st
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+
+import plotly.figure_factory as ff
+import plotly as py
+import plotly.graph_objects as go
 
 import requests
+import warnings
 
 from adjustText import adjust_text
 
@@ -132,7 +136,30 @@ if st.checkbox('Show Processed Data'):
 
 
 st.header('Plot')
+########
 
+#country = 'Singapore'
+
+#df_death_perc = 100*(df_deaths2[country]/df_confirmed2[country])
+#df_recov_perc = 100*(df_recovered2[country]/df_confirmed2[country])
+#df_death_perc.dropna()
+#df_recov_perc.dropna()
+
+#st.area_chart(df_death_perc )
+
+#st.pyplot()
+
+#plt.figure();
+
+
+
+#st.pyplot()
+
+#df_recovered2
+
+
+
+########
 
 # collect information on new cases
 window = st.slider("Sum new cases over how many days?", min_value=1,
@@ -175,69 +202,41 @@ if yaxis == 'New Deaths':
 if yaxis == 'New Recovered':
     y = df_recovered_new
 
+# get the date as a string
+datestring = x.index.strftime("%Y-%m-%d")
 
-# start plotting
-fig = plt.figure()
 
+data = []
 # if you dont choose any to highlight, all will be colored
 
 # plot everything in gray if the length of highlight is 0
 if len(highlight) == 0:
     for c in df_confirmed2.columns:
-        plt.plot(x[c], y[c], label=c)
+        data.append(go.Scattergl(x=x[c], y=y[c], name=c, showlegend=False, hovertext=datestring))
+        #plt.plot(x[c], y[c], label=c)
 else:
     for c in df_confirmed2.columns:
-        plt.plot(x[c], y[c], 'gray', label=c)
+        if not c in highlight:
+            data.append(go.Scattergl(x=x[c], y=y[c], name=c, line=dict(color='gray'), showlegend=False, hovertext=datestring))
+        #plt.plot(x[c], y[c], 'gray', label=c)
 
 # plot all the highlighted ones on top
 for h in highlight:
-    plt.plot(x[h], y[h], label=h)
+    data.append(go.Scattergl(x=x[h], y=y[h], name=h, hovertext=datestring))
+    #plt.plot(x[h], y[h], label=h)
 
 
-plt.yscale('log')
-plt.xscale('log')
-
-plt.xlabel(xaxis)
-plt.ylabel(f'{yaxis} over last {window} days')
-
-plt.grid(True)
-plt.xlim(left=50)
-plt.ylim(bottom=10)
-
-# plot the reference line
-
-xs = np.logspace(0, 6)
-ys = factor*xs
-plt.plot(xs, ys, 'k--')
-
-# collect all the force points
-allx, ally = [], []
-
-for c in df_confirmed2.columns:
-    allx.extend(x[c])
-    ally.extend(y[c])
+xrange=np.logspace(1,7)
+data.append(go.Scattergl(x=xrange, y = factor*xrange, name='Growth Constant', line=dict(color='black', dash="dash"), hovertext=f'{factor*100:.0f} new cases for every 100 cases'))
 
 
-# Rotate angle
-pt = np.array((500, 500))
-trans_angle = plt.gca().transData.transform_angles(np.array((45,)),
-                                                   pt.reshape((1, 2)))[0]
-plt.text(500, 1.2*factor*500, f'{100*factor:.0f} new cases for every 100 total cases',
-         rotation=trans_angle, ha='left', va='bottom')
+layout = go.Layout(xaxis_type="log", yaxis_type="log", legend={'traceorder':'normal'}, xaxis = dict(range=(2,7)), yaxis = dict(range=(1,6)),
+    xaxis_title=xaxis,
+    yaxis_title=f'{yaxis} over last {window} days')
 
+fig = go.Figure(data, layout)
 
-# create the annotations
-texts = []
-for h in highlight:
-    texts.append(plt.text(x[h][-1], y[h][-1], h))
-
-# auto-adjust their positioning
-if len(texts) > 0:
-    adjust_text(texts, x=allx, y=ally, arrowprops=dict(arrowstyle="-", color='k', lw=0.5),
-                force_text=(1, 2.5), force_points=(2, 20), only_move={'points': 'y', 'text': 'y', 'objects': 'y'})
-
-# plot it
-st.pyplot()
+st.plotly_chart(fig)
 
 
 st.markdown(f"""
@@ -283,36 +282,27 @@ df_ratio.mask(df_confirmed2 < 100, other=np.nan, inplace=True)
 highlight2 = st.multiselect("Select countries to highlight", list(df_ratio.columns), default=[
                             "World", "US", "Italy", "China", "Korea, South", "Singapore", "Diamond Princess"])
 
-
-plt.figure()
+data2 = []
 if len(highlight2) > 0:
-    ax = df_ratio.plot(legend=False, color='gray')
-    df_ratio[highlight2].plot(ax=ax)
+    for c in df_ratio.columns:
+        if not c in highlight2:
+            data2.append(go.Scattergl(x = df_ratio[c].index, y=df_ratio[c], name=c, line=dict(color='gray'), showlegend=False))
+        else:
+            data2.append(go.Scattergl(x = df_ratio[c].index, y=df_ratio[c], name=c, showlegend=True))
+    #ax = df_ratio.plot(legend=False, color='gray')
+    #df_ratio[highlight2].plot(ax=ax)
 else:
-    df_ratio.plot()
-plt.xlabel('Date')
-plt.title(f'Fraction of cases that occured in the last {window2} days')
-plt.ylabel('Fraction')
-st.pyplot()
+    for c in df_ratio.columns:
+        data2.append(go.Scattergl(x = df_ratio[c].index, y=df_ratio[c], name=c, showlegend=False))
 
-st.write('We can clearly see China ahead of the countries')
+layout2 = go.Layout(title=f'Fraction of cases that occured in the last {window2} days', xaxis_title='Date',
+    yaxis_title='Fraction')
 
+fig2 = go.Figure(data2, layout2)
 
-st.write('If we zoom in on more recent times, (the last two months)')
-plt.figure()
-if len(highlight2) > 0:
-    ax = df_ratio.plot(legend=False, color='gray')
-    df_ratio[highlight2].plot(ax=ax)
-else:
-    df_ratio.plot()
-xlim = plt.xlim()
-plt.xlim(left=xlim[1]-60)
-plt.xlabel('Date')
-plt.title(f'Fraction of cases that occured in the last {window2} days')
-plt.ylabel('Fraction')
-st.pyplot()
+st.plotly_chart(fig2)
 
-st.write('We can see an encouraging downwards trend. ')
+st.write('We can clearly see China ahead of the countries, but also an encouraging downwards trend.')
 
 
 # see the latest data
@@ -362,13 +352,92 @@ If the world woke up a bit sooner and put in harsher controls, and provided the 
 
 But today, (April 2 2020), the data shows me that things are getting better.
 
-Stay safe!
 
-Visit my github (https://github.com/dev10110/arewewinning) to see the code behind this, and let me know if there are other plots you want to see
 """)
 
 
 st.video('https://www.youtube.com/watch?v=54XLXg4fYsc')
 
 
+
+st.header("Are people recovering?")
+
+st.markdown(r"""At the suggestion of a friend, it seemed interesting to also plot the percentage of recovery and percentage of infections.
+
+There are a few different plots I've seen along these lines:
+
+1) Plot the percentage of people that have recovered and died against time. In this graph you plot:
+
+$$ \frac{\text{Total Recovered so far}}{\text{Total Recovered so far + Total dead so far}} $$
+ and
+$$ \frac{\text{Total Dead so far}}{\text{Total Recovered so far + Total dead so far}} $$
+
+on the same graph, so they add to 100%. However this seems to ignore an important time factor here: you only know that a person is recovered many days after they can be confirmed as a case.
+Also, seeing the split between recovered and dead doesnt hightlight anything about the current cummulative survival rates as the number of people who are currently infected is missing in that data.
+
+2) A population plot.
+
+This is quite common in the modelling community, where you simulate the total population and see whether a sizeable fraction gets infected.
+These consider how many of the people are 'removed' from the simulation, but most dont seem to make the split bewteen dead and recovered.
+Either because its irrelevant to the model, or because it is hard to tell the difference.
+
+So instead I'm going to plot percentages of infected people that have recovered or died. Its simply,
+$$ \frac{\text{Total number of recoveries}}{\text{Total number of cases}} $$
+and
+$$ \frac{\text{Total number of deaths}}{\text{Total number of cases}} $$
+stacked on top of each other, and I'll give you the option to see it normalized or as a quantity.
+
+These graphs are supposed to resemble those of https://www.washingtonpost.com/graphics/2020/world/corona-simulator/
+but beware that Harry Stevens uses the total population on the y axis, not just the total number of confirmed cases.
+
+ """)
+
+
+df_death_perc = (df_deaths2/df_confirmed2)
+df_recov_perc = (df_recovered2/df_confirmed2)
+
+
+
+layout3 = go.Layout(xaxis_title='Date',
+    yaxis_title='All Cases', yaxis=dict(
+    tickformat= ',.0%',
+    range= [0,1]
+  ))
+
+
+highlight4 = st.multiselect("Select countries to highlight", list(df_death_perc.columns), default=[
+                            "World", "US", "Italy", "China", "Singapore", "Diamond Princess", "Spain"])
+
+for h in highlight4:
+    data3 = []
+    data3.append(go.Scatter(x=df_death_perc.index, y=list(df_death_perc[h]),fill='tozeroy', name=f'{h} (Death)', hovertext=df_deaths2[h]))
+    data3.append(go.Scatter(x=df_death_perc.index, y=list(1-df_recov_perc[h]), name=f'{h} (Recovery)', hovertext=df_recovered2[h]))
+    data3.append(go.Scatter(x=df_death_perc.index, y=list(1 for d in df_recov_perc[h]), fill='tonexty',name=f'{h} (Total)', hovertext=df_confirmed2[h]))
+
+    fig3 = go.Figure(data3,layout3)
+    fig3.update_layout(title=h)
+    st.plotly_chart(fig3)
+
+
+
+st.markdown("""
+Interpreting these graphs is not trivial.
+
+The few countries I have selected all show vastly different types of plots, but here are a few things to look out for:
+
+1) If the blue + green nearly meet, that means almost all the confirmed cases have either recovered or died. That suggests that the country has a strong handle on the number of infections. (See China)
+
+2) If the two regions started to meet but then grew away from each other, that indicates an increase in total number of confirmed cases, but who have neither recovered nor died (See US)
+
+3) Steps in the graph are a telltale sign of poor data collection or very small total number of cases (See Diamond Princess and early US)
+
+4) Spain's graph is just weird.
+
+
+Visit my github (https://github.com/dev10110/arewewinning) to see the code behind this, and let me know if there are other plots you want to see.
+
+
+Stay safe!
+Dev
+""")
 #
